@@ -1,7 +1,9 @@
+import json
 from datetime import datetime
 
 from airflow import DAG
 from airflow.operators.python import PythonOperator
+from kafka import KafkaProducer
 
 default_args = {
     'owner': 'airscholar',
@@ -28,18 +30,20 @@ def format_data(res):
     data['postcode'] = location['postcode']
     data['email'] = res['email']
     data['username'] = res['login']['username']
-    data['dob'] = res['dob']['data']
+    data['dob'] = res['dob']['date']
     data['registered_date'] = res['registered']['date']
     data['phone'] = res['phone']
-    data['picture'] = data['picture']['medium']
+    data['picture'] = res['picture']['medium']
     return data
 
 
 def stream_data():
-    import json
     res = get_data()
     res = format_data(res)
-    print(json.dumps(res, indent=3))
+    # print(json.dumps(res, indent=3))
+
+    producer = KafkaProducer(bootstrap_servers=['localhost:9092'], max_block_ms=5000)
+    producer.send('users_created', json.dumps(res).encode('utf-8'))
 
 
 with DAG('user_automation', default_args=default_args, schedule_interval='@daily', catchup=False) as dag:
